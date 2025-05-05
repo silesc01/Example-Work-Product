@@ -1,54 +1,52 @@
 import streamlit as st
-import pandas as pd
-from pathlib import Path
-import sys
 
-# Add path to the file
-data_path = Path("C:/Users/siles/OneDrive/Desktop/DSKTOP/SKILLS/DS/Git REPOSITORIES/Example-Work-Product/Example-Work-Product/SPRT BTTNG")
-sys.path.append(str(data_path))
-
-from MLB_Plate_Appearance_data import mlb_df as df  # Import the DataFrame
-
-# Random batter/pitcher handedness (replace with real data if you have it)
-import numpy as np
-np.random.seed(42)
-df["Batter Hand"] = np.random.choice(["R", "L"], size=len(df))
-df["Pitcher Hand"] = np.random.choice(["R", "L"], size=len(df))
-
-# OBP adjustment function
-def adjust_obp(obp, bh, ph):
-    if bh == 'R' and ph == 'L':
+# --- OBP Adjustment Function ---
+def adjust_obp(obp, pitcher_hand, batter_hand="R"):  # default to R batter for now
+    if batter_hand == 'R' and pitcher_hand == 'L':
         return obp + 0.020
-    elif bh == 'L' and ph == 'L':
+    elif batter_hand == 'L' and pitcher_hand == 'L':
         return obp - 0.020
-    elif bh == 'L' and ph == 'R':
+    elif batter_hand == 'L' and pitcher_hand == 'R':
         return obp + 0.010
     else:
         return obp + 0.005
 
-df["Adjusted OBP"] = df.apply(lambda row: round(adjust_obp(row["OBP"], row["Batter Hand"], row["Pitcher Hand"]), 3), axis=1)
-
-# User input for odds
-odds = st.sidebar.number_input("DraftKings 'No' Odds (e.g. -150)", value=-150)
-
-# Calculate implied probability
+# --- Odds to Implied Probability ---
 def implied_prob(odds):
     return abs(odds) / (abs(odds) + 100) if odds < 0 else 100 / (100 + odds)
 
-implied_no_prob = implied_prob(odds)
+# --- Kelly Criterion ---
+def kelly(win_prob, odds_decimal):
+    b = odds_decimal - 1
+    return ((win_prob * (b + 1)) - 1) / b
 
-# Compute edge
-df["Edge %"] = ((1 - df["Adjusted OBP"]) - implied_no_prob) * 100
-df["Edge %"] = df["Edge %"].round(2)
+# --- Streamlit Interface ---
+st.title("MLB 'No' Bet Kelly Calculator")
 
-# Display controls and results
-st.title("MLB Live Betting Edge Calculator")
-st.markdown("**Targeting 'No' bets on Plate Appearances**")
+obp = st.number_input("Enter Player OBP (e.g. 0.278)", min_value=0.0, max_value=1.0, value=0.278, step=0.001)
+pitcher_hand = st.radio("Pitcher Hand", options=["L", "R"])
+batter_hand = st.radio("Batter Hand", options=["R", "L"])
+odds = st.number_input("DraftKings 'No' Odds", value=-150)
+unit = st.number_input("Unit Size ($)", min_value=1, value=10)
+kelly_cap = st.slider("Kelly Fraction Cap", 0.0, 1.0, 1.0, 0.05)
 
-st.write(f"Implied 'No' probability: **{implied_no_prob:.1%}**")
+# --- Adjust OBP and Calculate ---
+adj_obp = adjust_obp(obp, pitcher_hand, batter_hand)
+win_prob = 1 - adj_obp
+imp_prob = implied_prob(odds)
+edge = win_prob - imp_prob
 
-min_edge = st.slider("Minimum Edge (%)", min_value=-10.0, max_value=20.0, value=0.0, step=0.5)
+st.write(f"**Adjusted OBP:** {adj_obp:.3f}")
+st.write(f"**Win Probability (No Hit):** {win_prob:.1%}")
+st.write(f"**Implied Probability (from Odds):** {imp_prob:.1%}")
+st.write(f"**Edge:** {edge * 100:.2f}%")
 
-filtered_df = df[df["Edge %"] >= min_edge].sort_values("Edge %", ascending=False)
-
-st.dataframe(filtered_df.reset_index(drop=True))
+# --- Decision ---
+if edge <= 0:
+    st.error("Don’t bet — no edge.")
+else:
+    odds_decimal = abs(odds) / 100 + 1 if odds < 0 else 100 / odds + 1
+    k_fraction = kelly(win_prob, odds_decimal)
+    k_fraction = max(0, min(k_fraction, kelly_cap))
+    bet_amount = round(k_fraction * unit, 2)
+    st.success(f"**Recommended Bet: ${bet_amount}** ({k_fraction:.2%} of unit)")

@@ -1,6 +1,6 @@
 import pandas as pd
 
-data = [
+mlb_df = pd.DataFrame([
     {"Rank": 116, "Player": "Byron Buxton", "Team": "MIN", "OBP": 0.298},
     {"Rank": 117, "Player": "Kerry Carpenter", "Team": "DET", "OBP": 0.297},
     {"Rank": 118, "Player": "Trey Sweeney", "Team": "DET", "OBP": 0.296},
@@ -54,9 +54,6 @@ data = [
     {"Rank": 166, "Player": "Michael Massey", "Team": "KC", "OBP": 0.217},
     {"Rank": 167, "Player": "Andrew Vaughn", "Team": "CWS", "OBP": 0.217},
     {"Rank": 168, "Player": "Taylor Ward", "Team": "LAA", "OBP": 0.215}
-]
-
-df = pd.DataFrame(data)
-
+])
 
 
